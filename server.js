@@ -16,5 +16,9 @@ server.use('/api/material', materialsRouter);
 server.get('/', (req, res) => {
   res.status(200).send('Vention Quest');
 });
+//testing nodemon
+server.get('/ping', (req,res) => {
+  res.status(200).send('pong');
+})
 
 module.exports = server;
