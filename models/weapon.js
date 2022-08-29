@@ -14,7 +14,7 @@ class Weapon {
 
   /**
    * Returns power level of a weapon
-   * @param {Array<string>} array an array containing all materials
+   * @param {Array<string>} array an array containing the ids of all materials
    * @return {number} the powerlevel
    *
    */
@@ -23,14 +23,47 @@ class Weapon {
     const promises = array.map((id) => find(id));
     const materialResponse = await Promise.all(promises);
 
-    totalSum = 0;
+    let totalSum = 0;
     materialResponse.foreach((material) => {
-      materialSum = calculateComposite(material);
+      let materialSum = calculateComposite(material);
       totalSum += materialSum;
+    });
+    return totalSum
+  }
+
+  /**
+   * Returns power level of a weapon
+   * @param {Array<string>} array an array containing the ids of all materials
+   * @return {number} the Maximum Quantity
+   *
+   */
+  async getMaxQuantity(array) {
+    const promises = array.map(id => find(id));
+    const materialResponse = await Promise.all(promises);
+    let qtyArray = []
+    materialResponse.forEach(material => {
+      let qty = calculateMaxQuanity(material);
+      qtyArray.push(qty)
+    })
+    return Math.max.apply(null, qtyArray)
+  }
+}
+//findParent will return an array of materials linked to the composite
+async function calculateComposite(material) {
+  let sum = material.powerLevel;
+  let composite = findParent(material.id);
+  if (Array.isArray(composite) && composite.length === 0) {
+    return sum;
+  } else {
+    composite.forEach((mat) => {
+      sum += material.qty * mat.powerLevel;
+      calculateComposite(mat);
     });
   }
 }
-async function calculateComposite(material) {
+
+//TODO finish recursive quantity calculator
+async function calculateMaxQuanity(material) {
   sum = material.powerLevel;
   composite = findParent(material.id);
   if (Array.isEmpty(composite)) {
