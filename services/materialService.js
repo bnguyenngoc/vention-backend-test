@@ -1,23 +1,33 @@
-const { find, create, update, updateDeletedAt}= require('../models/material');
+const {
+  find,
+  findAll,
+  create,
+  update,
+  updateDeletedAt,
+} = require("../models/material");
 
 const MaterialService = () => {
   const getMaterial = async (id) => {
     return find(id);
   };
+  const getAllMaterials = async () => {
+    return findAll();
+  };
   const createMaterial = async (mat) => {
-    return create(mat)
+    return create(mat);
   };
   const updateMaterial = async (id, mat) => {
-    return update(id, mat)
-  }
-  const deleteMaterial = async(id) => {
-    return updateDeletedAt(id)
-  }
+    return update(id, mat);
+  };
+  const deleteMaterial = async (id) => {
+    return updateDeletedAt(id);
+  };
   return {
     getMaterial,
     createMaterial,
     updateMaterial,
-    deleteMaterial
+    deleteMaterial,
+    getAllMaterials,
   };
 };
 

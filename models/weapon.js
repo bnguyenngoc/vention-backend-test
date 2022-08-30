@@ -12,13 +12,7 @@ class Weapon {
     this.status = payload.status;
   }
 
-  /**
-   * Returns power level of a weapon
-   * @param {Array<string>} array an array containing the ids of all materials
-   * @return {number} the powerlevel
-   *
-   */
-  async getPowerLevel(array) {
+  static async getPowerLevel(array) {
     // get all materials
     const promises = array.map((id) => find(id));
     const materialResponse = await Promise.all(promises);
@@ -31,13 +25,7 @@ class Weapon {
     return totalSum
   }
 
-  /**
-   * Returns power level of a weapon
-   * @param {Array<string>} array an array containing the ids of all materials
-   * @return {number} the Maximum Quantity
-   *
-   */
-  async getMaxQuantity(array) {
+  static async getMaxQuantity(array) {
     const promises = array.map(id => find(id));
     const materialResponse = await Promise.all(promises);
     let qtyArray = []

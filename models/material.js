@@ -1,6 +1,7 @@
-const { default: knex } = require('knex');
-const db = require('../config/dbConfig.js');
-const table = 'materials';
+const knexfile = require('../knexfile')
+const knex = require("knex")(knexfile.development);
+const db = require("../config/dbConfig.js");
+const table = "materials";
 
 class Material {
   constructor(payload) {
@@ -10,50 +11,111 @@ class Material {
     this.deleted_at = payload.deleted_at;
   }
 
+  /**
+   * Note:
+   * a material that has a deleted_at date will be considered deleted, and thus should not be
+   * appearing while searching
+   *
+   */
   static async find(id) {
     try {
-      let material = await db(table).where('id', id).first();
+      let material = await db(table)
+        .where("id", id)
+        .whereNull("deleted_at")
+        .first();
       return new Material(material);
     } catch (e) {
-      throw new Error('Material not found');
+      throw new Error("Material not found");
     }
   }
 
-  static async create(mat){
-    try{
-      let material = Material(mat);
-      return await db(table).insert(material)
-    } catch(e) {
-      throw new Error('Error creating new material')
-    }
-  }
-
-  // TO BE IMPLEMENTED
-  static async update(id, mat) {
-    try{
-      let material = Material({...mat, id: id})
-      return await db(table).update(material).where('id', material.id)
-      //TODO
-      // Update weapons, weapon_materials and compositions tables
-    } catch(e){
-      throw new Error('Error updating material')
-    }
-  }
-
-  // TO BE IMPLEMENTED
-  static async updateDeletedAt(id) {
-    try{
-      let response = await db(table).where('id', id).first();
-      let material = Material(response);
-      if (material.deleted_at){
-        throw new Error('Material already deleted')
+  static async findAll() {
+    try {
+      let response = await db(table).select().whereNull("deleted_at");
+      let materials = [];
+      if (Array.isArray(response) && response.length !== 0) {
+        response.forEach((mat) => {
+          let material = new Material(mat);
+          materials.push(material);
+        });
       } else {
-        return await db(table).update('deleted_at', Date.now()).where('id', id)
-        //TODO
-        // Update weapons, weapon_materials and compositions tables
+        throw new Error("No materials found");
       }
-    } catch(e){
-      throw new Error('Error deleting material')
+      return materials;
+    } catch (e) {
+      throw new Error("Error getting all materials");
+    }
+  }
+
+  /**
+   * Note:
+   * Not sure if intentional or not, but because the id is forced in the seed file, psql cannot
+   * auto-increment properly and thus you need to add the id in the api body request. So i didn't
+   * change the seed file in case you are not suppose to auto-increment the id
+   */
+  static async create(mat) {
+    try {
+      let { id, power_level, qty } = mat;
+      let material = new Material({ id, power_level, qty, deleted_at: null });
+      // id is the primary key and it therefore needed. the rest of the keys in the migration file
+      // are nullable and thus can be empty
+      if (material.id === undefined || material.id === null) {
+        throw new Error("missing id in request");
+      }
+      let dbID = await db(table).returning("id").insert(material);
+      return dbID[0];
+    } catch (e) {
+      throw new Error(e.message);
+    }
+  }
+
+  /**
+   * Note:
+   * Just like the create function, we will suppose that the id is not an auto-increment from psql
+   * and that the user will have the ability to change the id of a material as well as the power_level
+   * and qty. deleted_at will still be forced to null since it is reserved for the the delete function
+   */
+  static async update(id, mat) {
+    try {
+      let response = db(table).where("id", id).whereNull("deleted_at").first();
+      if (!response){
+        throw new Error("Material to update does not exist")
+      }
+      // update values to be changed and keep current value if user didn't add anything
+      let oldMaterial = new Material(response)
+      let material = new Material({ ...mat, deleted_at: null });
+      for (let [key,value] of Object.entries(material)){
+        if (value === undefined || value === null){
+          material[key] = oldMaterial[key]
+        }
+      }
+      let dbID = await db(table).returning('id').update(material).where("id", id);
+      return dbID[0]
+      //TODO Update weapons, weapon_materials and compositions tables
+    } catch (e) {
+      // If the user is changing the id, there will be no need to validate if the material already exists,
+      // as the id is an unsigned primary key and knex will already be handling that error
+      throw new Error(e.message);
+    }
+  }
+
+  /**
+   * Note:
+   * I named it updateDeletedAt since there is still the possiblity that an admin would want to fully delete
+   * a material and not just update the deleted_at key
+   */
+  static async updateDeletedAt(id) {
+    try {
+      let response = await db(table).where("id", id).first();
+      let material = new Material(response);
+      if (material.deleted_at) {
+        throw new Error("Material already deleted");
+      } else {
+        return await db(table).update("deleted_at", knex.fn.now()).where("id", id);
+        //TODO Update weapons, weapon_materials and compositions tables
+      }
+    } catch (e) {
+      throw new Error(e.message);
     }
   }
 }
