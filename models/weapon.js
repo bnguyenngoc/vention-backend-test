@@ -35,11 +35,16 @@ class Weapon {
     })
     return Math.max.apply(null, qtyArray)
   }
+
+  static async patchWeapon(id, updatedValue){
+    return await db(table).update(updatedValue).where("id",id)
+
+  }
 }
 //findParent will return an array of materials linked to the composite
 async function calculateComposite(material) {
   let sum = material.powerLevel;
-  let composite = findParent(material.id);
+  let composite = await findParent(material.id);
   if (Array.isArray(composite) && composite.length === 0) {
     return sum;
   } else {
@@ -53,7 +58,7 @@ async function calculateComposite(material) {
 //TODO finish recursive quantity calculator
 async function calculateMaxQuanity(material) {
   sum = material.powerLevel;
-  composite = findParent(material.id);
+  composite = await findParent(material.id);
   if (Array.isEmpty(composite)) {
     return sum;
   } else {
