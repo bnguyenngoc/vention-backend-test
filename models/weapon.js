@@ -1,6 +1,5 @@
 const db = require("../config/dbConfig.js");
-const { find } = require("../models/material");
-const { findParent } = require("../models/composition");
+const { findComposite } = require("../models/composition");
 const table = "weapons";
 
 class Weapon {
@@ -12,39 +11,73 @@ class Weapon {
     this.status = payload.status;
   }
 
-  static async getPowerLevel(array) {
-    // get all materials
-    const promises = array.map((id) => find(id));
-    const materialResponse = await Promise.all(promises);
-
-    let totalSum = 0;
-    materialResponse.foreach((material) => {
-      let materialSum = calculateComposite(material);
-      totalSum += materialSum;
-    });
-    return totalSum
+  static async findWeapon(id){
+    try{
+      let weapon = await db(table).where("id", id).first();
+      return new Weapon(weapon)
+    } catch (e) {
+      throw new Error("Weapon not found")
+    }
   }
 
-  static async getMaxQuantity(array) {
-    const promises = array.map(id => find(id));
-    const materialResponse = await Promise.all(promises);
-    let qtyArray = []
-    materialResponse.forEach(material => {
-      let qty = calculateMaxQuanity(material);
-      qtyArray.push(qty)
-    })
-    return Math.max.apply(null, qtyArray)
+  static async getPowerLevel(weaponID) {
+    try{
+      let weapon = await this.findWeapon(weaponID)
+      // get all materials
+      // to prevent circular dependencies between weapon and material,
+      // we will write the queries to find the materials instead of using the find 
+      // function from the material model
+      let weaponMaterials = await db("weapon_materials").where("weapon_id", weapon.id)
+      const promises = weaponMaterials.map((wpnMat) => {
+        db("materials").where("id", wpnMat).whereNull("deleted_at").first()
+      });
+      const materialResponse = await Promise.all(promises);
+
+      let totalSum = 0;
+      for (const material of materialResponse) {
+        let materialSum = await calculateComposite(material);
+        totalSum += materialSum;
+      };
+      return totalSum
+    } catch (e) {
+      throw new Error("Error calculating power level")
+    }
+  }
+
+  //calculate the quantity per material and find the lowest one
+  static async getMaxQuantity(weaponID) {
+    try {
+      // get the weapon
+      let weapon = await this.findWeapon(weaponID)
+      // find all materials made for the weapon
+      let weaponMaterials = await db("weapon_materials").where("weapon_id", weapon.id)
+      const promises = weaponMaterials.map(wpnMat => {
+        db("materials").where("id", wpnMat.material_id).whereNull("deleted_at").first()
+      });
+      const materials = await Promise.all(promises);
+      let qtyArray = []
+      for (const material of materials) {
+        qty = await this.calculateMaxQuantity(material)
+        qtyArray.push(qty)
+      }
+      return Math.min.apply(null, qtyArray)
+
+    } catch(e){
+      throw new Error(`Error fetching maximum quantity: ${e.message}`)
+    }
+
   }
 
   static async patchWeapon(id, updatedValue){
     return await db(table).update(updatedValue).where("id",id)
 
   }
-}
-//findParent will return an array of materials linked to the composite
-async function calculateComposite(material) {
+
+  //function to recursive find every material of a composition and calculate
+  // the power level
+  static async calculateComposite(material) {
   let sum = material.powerLevel;
-  let composite = await findParent(material.id);
+  let composite = await findComposite(material.id, 'material_id');
   if (Array.isArray(composite) && composite.length === 0) {
     return sum;
   } else {
@@ -52,20 +85,30 @@ async function calculateComposite(material) {
       sum += material.qty * mat.powerLevel;
       calculateComposite(mat);
     });
+    }
+  }
+
+  static async calculateMaxQuantity(material) {
+    let sum = material.qty;
+    let compositeSum = 0;
+    let composite = await findComposite(material.id, 'parent_id');
+    if (Array.isEmpty(composite)) {
+      return sum;
+    } else {
+      for (const comp of composite) {
+        let mat = await db("materials").where("id", comp.parent_id).whereNull("deleted_at").first()
+        //find if there is any secondary composite of the original composite
+        // since we need to sum all of them before dividing 
+        let secondComposite = await findComposite(mat.id, 'parent_id')
+        if (Array.isEmpty(secondComposite)){
+          compositeSum += mat.qty / comp.qty;
+        } else {
+          calculateMaxQuantity(mat);
+        }
+      };
+      return sum + compositeSum;
+    }
   }
 }
 
-//TODO finish recursive quantity calculator
-async function calculateMaxQuanity(material) {
-  sum = material.powerLevel;
-  composite = await findParent(material.id);
-  if (Array.isEmpty(composite)) {
-    return sum;
-  } else {
-    composite.forEach((mat) => {
-      sum += material.qty * mat.powerLevel;
-      calculateComposite(mat);
-    });
-  }
-}
 module.exports = Weapon;

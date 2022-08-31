@@ -2,7 +2,8 @@ const knexfile = require("../knexfile");
 const knex = require("knex")(knexfile.development);
 const db = require("../config/dbConfig.js");
 const table = "materials";
-const { patchWeapon } = require("./weapon");
+const { patchWeapon, getPowerLevel } = require("./weapon");
+const { findComposite } = require("./composition");
 class Material {
   constructor(payload) {
     this.id = payload.id;
@@ -26,9 +27,9 @@ class Material {
     }
   }
 
-  static async findAll() {
+  static async findAll(query) {
     try {
-      let response = await db(table).select().whereNull("deleted_at");
+      let response = await db(table).where(query).whereNull("deleted_at");
       let materials = [];
       if (Array.isArray(response) && response.length !== 0) {
         response.forEach((mat) => {
@@ -87,11 +88,25 @@ class Material {
         }
       }
       let dbID = await db(table).returning("id").update(material).where("id", id);
-      return dbID[0];
-      //TODO Update weapons, weapon_materials and compositions tables
+      let newID = dbID[0];
+      /*
+      NOTE: error in the getPowerLevel function preventing this part to work, so it is commented out for now
+      // Update weapon_materials table if material_id has changed
+      if (newID !== oldMaterial.id) {
+        await db("weapon_materials").update({ material_id: dbID }).where("material_id", oldMaterial.id);
+      }
+      // if power level has changed, update all weapons using the material
+      // NOTE: this currently only covers base material and not composition
+      if (material.power_level !== oldMaterial.power_level) {
+        let weaponMaterials = await db("weapon_materials").where("material_id", newID);
+        let weaponsPromises = weaponMaterials.map((wpnMat) => {
+          getPowerLevel(wpnMat.weapon_id);
+        });
+        await Promise.all(weaponsPromises);
+      }
+      */
+      return newID;
     } catch (e) {
-      // If the user is changing the id, there will be no need to validate if the material already exists,
-      // as the id is an unsigned primary key and knex will already be handling that error
       throw new Error(e.message);
     }
   }
@@ -100,10 +115,10 @@ class Material {
    * Note:
    * I named it updateDeletedAt since there is still the possiblity that an admin would want to fully delete
    * a material and not just update the deleted_at key.
-   * 
+   *
    * recursively go through the composition table and update all parent_id with a deleted_at timestamp. once
    * the material doesn't have any more parent, search through every weapon in the weapon_materials table to see
-   * if a weapon uses that material.
+   * if a weapon uses that material and update weapon status to "broken".
    */
   static async updateDeletedAt(id) {
     try {
@@ -117,13 +132,14 @@ class Material {
           //mark all weapons using the material as broken
           let weapon_materials = await db("weapon_materials").where("material_id", id);
           const promises = weapon_materials.map((wm) => {
+            db("weapons").update({ status: "broken" }).where(wm.weapon_id);
             patchWeapon(wm.weapon_id, { status: "broken" });
           });
           await Promise.all(promises);
         } else {
-          composition.forEach(composite => {
-            this.updateDeletedAt(composite.material_id)
-          })
+          composition.forEach((composite) => {
+            this.updateDeletedAt(composite.material_id);
+          });
         }
         return await db(table).update("deleted_at", knex.fn.now()).where("id", id);
       }

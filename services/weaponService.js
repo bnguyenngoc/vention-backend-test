@@ -1,13 +1,12 @@
-const { find } = require('../models/material');
-
+const { getMaxQuantity } = require("../models/weapon");
 
 const WeaponService = () => {
-  const getWeapon = async (id) => {
-    return find(id);
-  };
+  const getMaxQty = async (id) => {
+    return getMaxQuantity(id)
+  }
 
   return {
-    getWeapon
+    getMaxQty,
   };
 };
 

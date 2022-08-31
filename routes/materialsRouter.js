@@ -14,7 +14,7 @@ router.get("/:id", async (req, res) => {
 
 router.get("/", async (req, res) => {
   try {
-    const materials = await MaterialService().getAllMaterials();
+    const materials = await MaterialService().getAllMaterials(req.query);
     res.status(200).json(materials);
   } catch (err) {
     res.status(500).json({ err: err.message });

@@ -10,8 +10,8 @@ const MaterialService = () => {
   const getMaterial = async (id) => {
     return find(id);
   };
-  const getAllMaterials = async () => {
-    return findAll();
+  const getAllMaterials = async (query) => {
+    return findAll(query);
   };
   const createMaterial = async (mat) => {
     return create(mat);
