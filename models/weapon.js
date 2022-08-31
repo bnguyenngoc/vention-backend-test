@@ -24,9 +24,12 @@ class Weapon {
     try{
       let weapon = await this.findWeapon(weaponID)
       // get all materials
-      // to prevent circular dependencies between weapon and material,
-      // we will write the queries to find the materials instead of using the find 
-      // function from the material model
+      /*
+      To prevent circular dependencies between weapon and material,
+      we will write the queries to find the materials instead of using the find 
+      function from the material model. Optimally, a separate function would have been used
+      to reuse the code between the weapon and material model
+      */
       let weaponMaterials = await db("weapon_materials").where("weapon_id", weapon.id)
       const promises = weaponMaterials.map((wpnMat) => {
         db("materials").where("id", wpnMat).whereNull("deleted_at").first()
@@ -44,22 +47,24 @@ class Weapon {
     }
   }
 
-  //calculate the quantity per material and find the lowest one
+  // Calculate the quantity per material and find the lowest one
   static async getMaxQuantity(weaponID) {
     try {
-      // get the weapon
+      // Get the weapon
       let weapon = await this.findWeapon(weaponID)
-      // find all materials made for the weapon
+      // Find all materials made for the weapon
       let weaponMaterials = await db("weapon_materials").where("weapon_id", weapon.id)
       const promises = weaponMaterials.map(wpnMat => {
         db("materials").where("id", wpnMat.material_id).whereNull("deleted_at").first()
       });
       const materials = await Promise.all(promises);
       let qtyArray = []
+      // Calculate the quantity of each material
       for (const material of materials) {
         qty = await this.calculateMaxQuantity(material)
         qtyArray.push(qty)
       }
+      // return the smallest of the array
       return Math.min.apply(null, qtyArray)
 
     } catch(e){
@@ -73,7 +78,7 @@ class Weapon {
 
   }
 
-  //function to recursive find every material of a composition and calculate
+  // Function to recursively find every material of a composition and calculate
   // the power level
   static async calculateComposite(material) {
   let sum = material.powerLevel;
@@ -88,6 +93,7 @@ class Weapon {
     }
   }
 
+  // Function to recursively calculate the quantity of each material in a weapon
   static async calculateMaxQuantity(material) {
     let sum = material.qty;
     let compositeSum = 0;

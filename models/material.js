@@ -3,7 +3,6 @@ const knex = require("knex")(knexfile.development);
 const db = require("../config/dbConfig.js");
 const table = "materials";
 const { patchWeapon, getPowerLevel } = require("./weapon");
-const { findComposite } = require("./composition");
 class Material {
   constructor(payload) {
     this.id = payload.id;
@@ -89,8 +88,7 @@ class Material {
       }
       let dbID = await db(table).returning("id").update(material).where("id", id);
       let newID = dbID[0];
-      /*
-      NOTE: error in the getPowerLevel function preventing this part to work, so it is commented out for now
+      // NOTE: error in the getPowerLevel function preventing this part to work, so it is commented out for now
       // Update weapon_materials table if material_id has changed
       if (newID !== oldMaterial.id) {
         await db("weapon_materials").update({ material_id: dbID }).where("material_id", oldMaterial.id);
@@ -104,7 +102,6 @@ class Material {
         });
         await Promise.all(weaponsPromises);
       }
-      */
       return newID;
     } catch (e) {
       throw new Error(e.message);
